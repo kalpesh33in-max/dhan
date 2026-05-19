@@ -41,6 +41,13 @@ The scanner downloads `security_id_list.csv` from Dhan automatically if it is mi
 
 During scanner operation, futures/options burst alerts and a scanner-start message are sent to Telegram. Gap, pivot, reversal, weekly breakout, stop, and scanner error Telegram messages are disabled in the Dhan scanner.
 
+Crude oil burst alerts are additionally checked after 15:30 IST on weekdays, using the same 15-second OI burst watch logic with crude-specific strength levels:
+
+- 25+ lots = GOOD
+- 50+ lots = VERY GOOD
+- 100+ lots = AWESOME
+- 200+ lots = BLAST
+
 Instrument refresh success/failure messages are sent to Telegram for scheduled refreshes and for manual `/refresh-instruments` requests.
 
 ## Instrument List Auto Update

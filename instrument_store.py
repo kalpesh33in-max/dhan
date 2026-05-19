@@ -120,6 +120,8 @@ def _derive_kite_segment(exchange_segment, instrument):
     instrument = str(instrument or "").strip().upper()
     if exchange_segment == "IDX_I":
         return "INDICES"
+    if exchange_segment == "MCX_COMM":
+        return "MCX-OPT" if instrument.startswith("OPT") else "MCX-FUT" if instrument.startswith("FUT") else "MCX"
     if exchange_segment == "BSE_FNO":
         return "BFO-OPT" if instrument.startswith("OPT") else "BFO-FUT"
     if exchange_segment == "NSE_FNO":

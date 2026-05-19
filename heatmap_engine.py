@@ -15,10 +15,12 @@ LOT_SIZES = {
     "HDFCBANK": 550,
     "ICICIBANK": 700,
     "RELIANCE": 500,
+    "CRUDEOIL": 1,
 }
 
 INDEX_BURST_NAMES = {"BANKNIFTY", "NIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX"}
 STOCK_BURST_NAMES = {"HDFCBANK", "ICICIBANK", "RELIANCE"}
+CRUDE_BURST_NAMES = {"CRUDEOIL"}
 BURST_TRACK_NAMES = [
     "BANKNIFTY",
     "NIFTY",
@@ -29,6 +31,7 @@ BURST_TRACK_NAMES = [
     "ICICIBANK",
     "RELIANCE",
 ]
+CRUDE_TRACK_NAMES = ["CRUDEOIL"]
 INDEX_SYMBOL = "IDX_I:BANKNIFTY"
 INDEX_FUTURE_NAMES = {"NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX", "BANKEX", "SENSEX50"}
 
@@ -78,13 +81,16 @@ def is_index_underlying(name):
 
 
 def is_burst_underlying(name):
-    return name in INDEX_BURST_NAMES or name in STOCK_BURST_NAMES
+    return name in INDEX_BURST_NAMES or name in STOCK_BURST_NAMES or name in CRUDE_BURST_NAMES
 
 
 def get_burst_threshold(name):
     # Burst threshold in lots:
     # - Index underlyings: 100 lots
     # - Stock underlyings: 50 lots
+    # - Crude oil: 25 lots
+    if name in CRUDE_BURST_NAMES:
+        return 25
     return 100 if is_index_underlying(name) else 50
 
 
@@ -125,7 +131,7 @@ def load_options_data():
     if _options_df is None:
         try:
             df = load_instruments_frame()
-            _options_df = df[df["segment"].isin(["NFO-OPT", "BFO-OPT"])].copy()
+            _options_df = df[df["segment"].isin(["NFO-OPT", "BFO-OPT", "MCX-OPT"])].copy()
             expiry = pd.to_datetime(_options_df["expiry"], format="%Y-%m-%d", errors="coerce")
             if expiry.isna().mean() > 0.05:
                 expiry = pd.to_datetime(_options_df["expiry"], dayfirst=True, errors="coerce")
@@ -243,6 +249,20 @@ def get_bank_futures(kite):
     return symbols
 
 
+def get_crudeoil_futures(kite):
+    symbols = []
+    for name in CRUDE_TRACK_NAMES:
+        sym = get_active_future(name)
+        if sym:
+            symbols.append(sym)
+    summary_key = "crude_future_summary"
+    summary_text = ", ".join(symbols) if symbols else "none"
+    if _last_logged_expiry.get(summary_key) != summary_text:
+        print(f"Selected tracked crude futures: {summary_text}")
+        _last_logged_expiry[summary_key] = summary_text
+    return symbols
+
+
 def get_stock_may_future_symbols():
     futures = load_stock_futures_data()
     if futures.empty:
@@ -320,6 +340,15 @@ def get_relevant_options(name, ltp):
 
 
 def get_strength_label(lots, name="BANKNIFTY"):
+    if name in CRUDE_BURST_NAMES:
+        if lots >= 200:
+            return "BLAST"
+        if lots >= 100:
+            return "AWESOME"
+        if lots >= 50:
+            return "✅ VERY GOOD"
+        return "⚡ GOOD"
+
     if lots >= 400:
         return "🚀 BLAST 🚀"
     if lots >= 300:
@@ -1374,6 +1403,53 @@ def process_option_logic(name, underlying_data, option_quotes, alerts_list):
         history.append({"time": now, "oi": curr_oi, "price": ltp})
         if len(history) > 20:
             history.pop(0)
+
+
+def calculate_crudeoil_heatmap(kite):
+    fut_symbols = get_crudeoil_futures(kite)
+    data = get_symbol_quotes_with_fallback(kite, fut_symbols)
+    if not data:
+        return []
+
+    crude_alerts = []
+    fut_by_name = {}
+    for sym in fut_symbols:
+        try:
+            tsym = sym.split(":", 1)[1]
+        except Exception:
+            continue
+        for name in CRUDE_TRACK_NAMES:
+            if tsym.startswith(name):
+                fut_by_name[name] = sym
+
+    all_opt_tokens = []
+    underlying_map = {}
+
+    for name in CRUDE_TRACK_NAMES:
+        base_symbol = fut_by_name.get(name, "")
+        u_ltp = data.get(base_symbol, {}).get("last_price", 0)
+        if u_ltp <= 0:
+            continue
+        df = get_relevant_options(name, u_ltp)
+        if df.empty:
+            continue
+        underlying_map[name] = (df, u_ltp)
+        all_opt_tokens.extend(df["instrument_token"].tolist())
+
+    opt_quotes = get_option_quotes_with_fallback(kite, all_opt_tokens)
+
+    for name in CRUDE_TRACK_NAMES:
+        sym = fut_by_name.get(name)
+        if not sym or sym not in data:
+            continue
+
+        d = data[sym]
+        ltp = d["last_price"]
+        oi = d.get("oi", 0)
+        process_future_burst(sym, name, ltp, oi, crude_alerts)
+        process_option_logic(name, underlying_map.get(name, (pd.DataFrame(), 0)), opt_quotes, crude_alerts)
+
+    return [f"CRUDE OIL BURST\n{alert}" for alert in crude_alerts]
 
 
 def calculate_heatmap(kite):

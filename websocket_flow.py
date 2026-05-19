@@ -128,7 +128,15 @@ class FlowEngine:
                 pass
 
     def _build_subscription_map(self):
-        from heatmap_engine import BURST_TRACK_NAMES, get_bank_futures, get_relevant_options, load_futures_data, load_options_data
+        from heatmap_engine import (
+            BURST_TRACK_NAMES,
+            CRUDE_TRACK_NAMES,
+            get_bank_futures,
+            get_crudeoil_futures,
+            get_relevant_options,
+            load_futures_data,
+            load_options_data,
+        )
 
         if self._tokens:
             return self._tokens, self._symbol_by_token
@@ -142,7 +150,8 @@ class FlowEngine:
         tokens = set()
         symbol_by_token = {}
 
-        fut_symbols = get_bank_futures(self.dhan_client)
+        tracked_names = BURST_TRACK_NAMES + CRUDE_TRACK_NAMES
+        fut_symbols = get_bank_futures(self.dhan_client) + get_crudeoil_futures(self.dhan_client)
         if not fut_symbols:
             return [], {}
 
@@ -152,7 +161,7 @@ class FlowEngine:
             if len(parts) != 2:
                 continue
             tsym = parts[1]
-            for name in BURST_TRACK_NAMES:
+            for name in tracked_names:
                 if tsym.startswith(name):
                     fut_by_name[name] = symbol
 
@@ -170,7 +179,7 @@ class FlowEngine:
             tokens.add(token)
             symbol_by_token[token] = symbol
 
-        for name in BURST_TRACK_NAMES:
+        for name in tracked_names:
             base_symbol = fut_by_name.get(name, "")
             u_ltp = symbol_quotes.get(base_symbol, {}).get("last_price", 0)
             if u_ltp <= 0:
