@@ -20,8 +20,14 @@ def send_telegram_message(message, chat_id=None, token=None):
     }
 
     try:
-        response = requests.post(url, json=payload)
-        return response.json()
+        response = requests.post(url, json=payload, timeout=10)
+        try:
+            data = response.json()
+        except Exception:
+            data = response.text
+        if not response.ok:
+            print(f"Telegram send failed: HTTP {response.status_code} {data}", flush=True)
+        return data
     except Exception as e:
-        print(f"Error sending Telegram message: {e}")
+        print(f"Error sending Telegram message: {e}", flush=True)
         return None

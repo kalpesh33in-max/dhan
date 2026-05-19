@@ -16,7 +16,7 @@ CRUDE_END_TIME = datetime.strptime("23:55", "%H:%M").time()
 
 def run_scanner(kite, stop_event=None):
 
-    print("Dhan scanner session initialized. Waiting for market hours.")
+    print("Dhan scanner session initialized. Sending start alert to Telegram.", flush=True)
     send_telegram_message(
         f"Dhan scanner started.\n"
         f"Time: {datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')} IST\n"
@@ -83,7 +83,7 @@ def run_scanner(kite, stop_event=None):
                 time.sleep(SCAN_INTERVAL_SECONDS)
 
     finally:
-        print("Scanner loop stopped.")
+        print("Scanner loop stopped. Sending stop alert to Telegram.", flush=True)
         send_telegram_message(
             f"Dhan scanner stopped.\n"
             f"Time: {datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')} IST",

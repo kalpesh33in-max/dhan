@@ -43,7 +43,7 @@ def credentials_present():
 def ensure_instruments_available(source):
     if os.path.exists(SECURITY_FILE):
         return True
-    print(f"[{source}] {SECURITY_FILE} missing. Downloading Dhan security master...")
+    print(f"[{source}] {SECURITY_FILE} missing. Downloading Dhan security master...", flush=True)
     try:
         download_security_master(SECURITY_FILE)
         load_instruments_frame()
@@ -57,11 +57,11 @@ def validate_and_start_scanner(source):
     global scanner_thread, flow_engine
     with scanner_lock:
         if scanner_thread and scanner_thread.is_alive():
-            print(f"[{source}] Dhan scanner already running.")
+            print(f"[{source}] Dhan scanner already running.", flush=True)
             return True
 
         if not credentials_present():
-            print(f"[{source}] Dhan credentials missing. Set DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN.")
+            print(f"[{source}] Dhan credentials missing. Set DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN.", flush=True)
             return False
 
         if not ensure_instruments_available(source):
@@ -69,7 +69,7 @@ def validate_and_start_scanner(source):
 
         try:
             dhan.profile()
-            print(f"[{source}] Dhan credentials validated. Starting engine...")
+            print(f"[{source}] Dhan credentials validated. Starting engine...", flush=True)
 
             scanner_stop_event.clear()
             flow_engine = FlowEngine(dhan)
@@ -79,7 +79,7 @@ def validate_and_start_scanner(source):
             scanner_thread.start()
             return True
         except Exception as e:
-            print(f"[{source}] Dhan validation failed: {e}")
+            print(f"[{source}] Dhan validation failed: {e}", flush=True)
             return False
 
 
@@ -88,10 +88,10 @@ def stop_scanner(source):
     with scanner_lock:
         thread = scanner_thread
         if not thread or not thread.is_alive():
-            print(f"[{source}] Dhan scanner already stopped.")
+            print(f"[{source}] Dhan scanner already stopped.", flush=True)
             return False
 
-        print(f"[{source}] Stopping Dhan scanner...")
+        print(f"[{source}] Stopping Dhan scanner...", flush=True)
         scanner_stop_event.set()
         engine = flow_engine
 
@@ -124,13 +124,13 @@ atexit.register(_send_shutdown_stop_alert)
 
 
 def update_instruments(source="Manual", notify=False):
-    print("Updating Dhan security_id_list.csv...")
+    print("Updating Dhan security_id_list.csv...", flush=True)
     now = datetime.now(IST)
     try:
         download_security_master(SECURITY_FILE)
         reset_cache()
         load_instruments_frame()
-        print("Dhan instruments updated.")
+        print("Dhan instruments updated.", flush=True)
         if notify:
             send_telegram_message(
                 "Dhan instruments updated successfully.\n"
@@ -139,7 +139,7 @@ def update_instruments(source="Manual", notify=False):
             )
         return True
     except Exception as e:
-        print(f"Dhan instrument update error: {e}")
+        print(f"Dhan instrument update error: {e}", flush=True)
         if notify:
             send_telegram_message(
                 "Dhan instrument update failed.\n"
@@ -154,7 +154,7 @@ def _configured_update_time():
     try:
         return datetime.strptime(INSTRUMENT_UPDATE_TIME, "%H:%M").time()
     except ValueError:
-        print(f"Invalid INSTRUMENT_UPDATE_TIME={INSTRUMENT_UPDATE_TIME!r}; using 08:30.")
+        print(f"Invalid INSTRUMENT_UPDATE_TIME={INSTRUMENT_UPDATE_TIME!r}; using 08:30.", flush=True)
         return datetime.strptime("08:30", "%H:%M").time()
 
 
@@ -191,14 +191,15 @@ def _instrument_update_due(now, last_update_key):
 
 def scheduled_instrument_task():
     now = datetime.now(IST)
-    print(f"Dhan instrument update task started at {now.strftime('%Y-%m-%d %H:%M')}")
+    print(f"Dhan instrument update task started at {now.strftime('%Y-%m-%d %H:%M')}", flush=True)
     update_instruments(source="Scheduled", notify=True)
 
 
 def run_scheduler_loop():
     print(
         "Dhan background scheduler active. "
-        f"Instrument update mode={INSTRUMENT_UPDATE_MODE}, time={INSTRUMENT_UPDATE_TIME} IST."
+        f"Instrument update mode={INSTRUMENT_UPDATE_MODE}, time={INSTRUMENT_UPDATE_TIME} IST.",
+        flush=True,
     )
     last_instrument_update_key = None
 
@@ -215,11 +216,11 @@ def start_background_services(source):
     global background_started
     with scanner_lock:
         if background_started:
-            print(f"[{source}] Dhan background services already started.")
+            print(f"[{source}] Dhan background services already started.", flush=True)
             return
         background_started = True
 
-    print(f"[{source}] Starting Dhan background tasks...")
+    print(f"[{source}] Starting Dhan background tasks...", flush=True)
     sched_thread = threading.Thread(target=run_scheduler_loop, daemon=True)
     sched_thread.start()
 
@@ -276,8 +277,12 @@ def login():
     )
 
 
+if __name__ != "__main__":
+    start_background_services("Gunicorn Import")
+
+
 if __name__ == "__main__":
-    print(f"Starting Dhan Flask dev server on port {os.getenv('PORT', 8080)}...")
+    print(f"Starting Dhan Flask dev server on port {os.getenv('PORT', 8080)}...", flush=True)
     start_background_services("Direct Run")
     port = int(os.getenv("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
