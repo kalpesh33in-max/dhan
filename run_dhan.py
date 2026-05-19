@@ -19,6 +19,7 @@ AUTO_START_SCANNER = os.getenv("AUTO_START_SCANNER", "true").lower() in ("true",
 AUTO_START_BACKGROUND = os.getenv("AUTO_START_BACKGROUND", "true").lower() in ("true", "1", "yes")
 INSTRUMENT_UPDATE_MODE = os.getenv("INSTRUMENT_UPDATE_MODE", "monthly").lower()
 INSTRUMENT_UPDATE_TIME = os.getenv("INSTRUMENT_UPDATE_TIME", "08:30")
+INSTRUMENT_UPDATE_CUTOFF_TIME = os.getenv("INSTRUMENT_UPDATE_CUTOFF_TIME", "09:15")
 
 app = Flask(__name__)
 dhan = DhanLikeClient()
@@ -27,6 +28,7 @@ scanner_thread = None
 flow_engine = None
 scanner_stop_event = threading.Event()
 scanner_lock = threading.Lock()
+instrument_update_lock = threading.Lock()
 background_started = False
 shutdown_stop_alert_sent = False
 
@@ -43,14 +45,17 @@ def credentials_present():
 def ensure_instruments_available(source):
     if os.path.exists(SECURITY_FILE):
         return True
-    print(f"[{source}] {SECURITY_FILE} missing. Downloading Dhan security master...", flush=True)
-    try:
-        download_security_master(SECURITY_FILE)
-        load_instruments_frame()
-        return True
-    except Exception as e:
-        print(f"[{source}] Dhan instrument download failed: {e}")
-        return False
+    with instrument_update_lock:
+        if os.path.exists(SECURITY_FILE):
+            return True
+        print(f"[{source}] {SECURITY_FILE} missing. Downloading Dhan security master...", flush=True)
+        try:
+            download_security_master(SECURITY_FILE)
+            load_instruments_frame()
+            return True
+        except Exception as e:
+            print(f"[{source}] Dhan instrument download failed: {e}", flush=True)
+            return False
 
 
 def validate_and_start_scanner(source):
@@ -127,9 +132,10 @@ def update_instruments(source="Manual", notify=False):
     print("Updating Dhan security_id_list.csv...", flush=True)
     now = datetime.now(IST)
     try:
-        download_security_master(SECURITY_FILE)
-        reset_cache()
-        load_instruments_frame()
+        with instrument_update_lock:
+            download_security_master(SECURITY_FILE)
+            reset_cache()
+            load_instruments_frame()
         print("Dhan instruments updated.", flush=True)
         if notify:
             send_telegram_message(
@@ -158,6 +164,14 @@ def _configured_update_time():
         return datetime.strptime("08:30", "%H:%M").time()
 
 
+def _configured_update_cutoff_time():
+    try:
+        return datetime.strptime(INSTRUMENT_UPDATE_CUTOFF_TIME, "%H:%M").time()
+    except ValueError:
+        print(f"Invalid INSTRUMENT_UPDATE_CUTOFF_TIME={INSTRUMENT_UPDATE_CUTOFF_TIME!r}; using 09:15.", flush=True)
+        return datetime.strptime("09:15", "%H:%M").time()
+
+
 def _last_weekday_of_month(now):
     if now.month == 12:
         next_month = now.replace(year=now.year + 1, month=1, day=1)
@@ -174,7 +188,9 @@ def _instrument_update_due(now, last_update_key):
     if INSTRUMENT_UPDATE_MODE in {"off", "false", "0", "no"}:
         return False, last_update_key
 
-    if now.weekday() > 4 or now.time() < _configured_update_time():
+    update_time = _configured_update_time()
+    cutoff_time = _configured_update_cutoff_time()
+    if now.weekday() > 4 or now.time() < update_time or now.time() > cutoff_time:
         return False, last_update_key
 
     if INSTRUMENT_UPDATE_MODE == "daily":
@@ -198,7 +214,7 @@ def scheduled_instrument_task():
 def run_scheduler_loop():
     print(
         "Dhan background scheduler active. "
-        f"Instrument update mode={INSTRUMENT_UPDATE_MODE}, time={INSTRUMENT_UPDATE_TIME} IST.",
+        f"Instrument update mode={INSTRUMENT_UPDATE_MODE}, time={INSTRUMENT_UPDATE_TIME}-{INSTRUMENT_UPDATE_CUTOFF_TIME} IST.",
         flush=True,
     )
     last_instrument_update_key = None
@@ -277,7 +293,7 @@ def login():
     )
 
 
-if __name__ != "__main__":
+if __name__ != "__main__" and AUTO_START_BACKGROUND:
     start_background_services("Gunicorn Import")
 
 

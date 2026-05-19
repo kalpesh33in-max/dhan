@@ -50,8 +50,13 @@ def download_security_master(filename=SECURITY_FILE, detailed=False, timeout=60)
     url = DETAILED_MASTER_URL if detailed else COMPACT_MASTER_URL
     response = requests.get(url, timeout=timeout)
     response.raise_for_status()
-    with open(filename, "wb") as f:
+    if not response.content:
+        raise ValueError("Downloaded Dhan security master is empty")
+
+    tmp_filename = f"{filename}.tmp"
+    with open(tmp_filename, "wb") as f:
         f.write(response.content)
+    os.replace(tmp_filename, filename)
     reset_cache()
     return filename
 
