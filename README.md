@@ -39,15 +39,17 @@ Routes:
 
 The scanner downloads `security_id_list.csv` from Dhan automatically if it is missing.
 
-Only futures and options burst alerts are sent to Telegram. Gap, pivot, reversal, weekly breakout, startup, stop, error, and instrument-update Telegram messages are disabled in the Dhan scanner.
+Only futures and options burst alerts are sent to Telegram during scanner operation. Gap, pivot, reversal, weekly breakout, startup, stop, and scanner error Telegram messages are disabled in the Dhan scanner.
+
+Instrument refresh success/failure messages are sent to Telegram for scheduled refreshes and for manual `/refresh-instruments` requests.
 
 ## Instrument List Auto Update
 
-By default, `run_dhan.py` refreshes `security_id_list.csv` automatically on the last weekday of every month at 08:30 IST.
+For daily pre-market refreshes on Railway, set `INSTRUMENT_UPDATE_MODE=daily` and `INSTRUMENT_UPDATE_TIME=08:30`. The refresh runs once per weekday at or after the configured IST time.
 
 Optional scheduler settings:
 
 ```powershell
-$env:INSTRUMENT_UPDATE_MODE="monthly"   # monthly, daily, or off
+$env:INSTRUMENT_UPDATE_MODE="daily"     # daily, monthly, or off
 $env:INSTRUMENT_UPDATE_TIME="08:30"     # HH:mm IST
 ```

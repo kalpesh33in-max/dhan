@@ -10,6 +10,7 @@ from dhan_client import DhanLikeClient
 from env_config import DHAN_ACCESS_TOKEN, DHAN_CLIENT_ID
 from instrument_store import SECURITY_FILE, download_security_master, load_instruments_frame, reset_cache
 from scanner import run_scanner
+from telegram_utils import send_telegram_message
 from websocket_flow import FlowEngine
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -78,15 +79,31 @@ def validate_and_start_scanner(source):
             return False
 
 
-def update_instruments():
+def update_instruments(source="Manual", notify=False):
     print("Updating Dhan security_id_list.csv...")
+    now = datetime.now(IST)
     try:
         download_security_master(SECURITY_FILE)
         reset_cache()
         load_instruments_frame()
         print("Dhan instruments updated.")
+        if notify:
+            send_telegram_message(
+                "Dhan instruments updated successfully.\n"
+                f"Source: {source}\n"
+                f"Time: {now.strftime('%Y-%m-%d %H:%M:%S')} IST"
+            )
+        return True
     except Exception as e:
         print(f"Dhan instrument update error: {e}")
+        if notify:
+            send_telegram_message(
+                "Dhan instrument update failed.\n"
+                f"Source: {source}\n"
+                f"Time: {now.strftime('%Y-%m-%d %H:%M:%S')} IST\n"
+                f"Error: {e}"
+            )
+        return False
 
 
 def _configured_update_time():
@@ -131,7 +148,7 @@ def _instrument_update_due(now, last_update_key):
 def scheduled_instrument_task():
     now = datetime.now(IST)
     print(f"Dhan instrument update task started at {now.strftime('%Y-%m-%d %H:%M')}")
-    update_instruments()
+    update_instruments(source="Scheduled", notify=True)
 
 
 def run_scheduler_loop():
@@ -197,7 +214,7 @@ def start():
 @app.route("/refresh-instruments")
 def refresh_instruments():
     ensure_background_services_started("HTTP /refresh-instruments")
-    update_instruments()
+    update_instruments(source="Manual /refresh-instruments", notify=True)
     return "<h1>Dhan instruments refresh requested.</h1>"
 
 
