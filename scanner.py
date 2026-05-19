@@ -15,6 +15,13 @@ SILENT_LOG_INTERVAL_SECONDS = 300
 def run_scanner(kite, stop_event=None):
 
     print("Dhan scanner session initialized. Waiting for market hours.")
+    send_telegram_message(
+        f"Dhan scanner started.\n"
+        f"Time: {datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')} IST\n"
+        "Mode: Futures/options burst alerts only",
+        chat_id=TELE_CHAT_ID_BN,
+        token=TELE_TOKEN_BN,
+    )
 
     last_silent_log_time = 0.0
 

@@ -39,7 +39,7 @@ Routes:
 
 The scanner downloads `security_id_list.csv` from Dhan automatically if it is missing.
 
-Only futures and options burst alerts are sent to Telegram during scanner operation. Gap, pivot, reversal, weekly breakout, startup, stop, and scanner error Telegram messages are disabled in the Dhan scanner.
+During scanner operation, futures/options burst alerts and a scanner-start message are sent to Telegram. Gap, pivot, reversal, weekly breakout, stop, and scanner error Telegram messages are disabled in the Dhan scanner.
 
 Instrument refresh success/failure messages are sent to Telegram for scheduled refreshes and for manual `/refresh-instruments` requests.
 
