@@ -1,4 +1,5 @@
 import json
+import os
 import struct
 import threading
 import time
@@ -10,6 +11,8 @@ from env_config import DHAN_ACCESS_TOKEN, DHAN_CLIENT_ID
 from instrument_store import exchange_code_for_segment, get_resolver
 
 QUOTE_REQUEST_CODE = 17
+WS_RETRY_SECONDS = int(os.getenv("DHAN_WS_RETRY_SECONDS", "15"))
+WS_BLOCKED_RETRY_SECONDS = int(os.getenv("DHAN_WS_BLOCKED_RETRY_SECONDS", "900"))
 
 _cache_lock = threading.Lock()
 _token_quotes = {}
@@ -95,6 +98,7 @@ class FlowEngine:
         self._lock = threading.Lock()
         self._tokens = list(tokens or [])
         self._symbol_by_token = {}
+        self._blocked_until = 0.0
 
     def start(self):
         with self._lock:
@@ -200,6 +204,13 @@ class FlowEngine:
 
     def _run_loop(self):
         while not self._stop_event.is_set():
+            wait_seconds = self._blocked_until - time.time()
+            if wait_seconds > 0:
+                print(f"Dhan WebSocket blocked/rate-limited. Retrying in {int(wait_seconds)} seconds.", flush=True)
+                if self._stop_event.wait(min(wait_seconds, 60)):
+                    break
+                continue
+
             try:
                 url = (
                     "wss://api-feed.dhan.co"
@@ -218,7 +229,7 @@ class FlowEngine:
 
             mark_connected(False)
             if not self._stop_event.is_set():
-                time.sleep(3)
+                self._stop_event.wait(WS_RETRY_SECONDS)
 
     def _on_open(self, ws):
         mark_connected(True)
@@ -267,11 +278,24 @@ class FlowEngine:
             update_symbol_quote(symbol, parsed)
 
     def _on_error(self, ws, error):
-        print(f"Dhan WebSocket error: {error}")
+        error_text = str(error or "")
+        if self._is_rate_limit_error(error_text):
+            self._blocked_until = time.time() + WS_BLOCKED_RETRY_SECONDS
+            print(
+                "Dhan WebSocket rate-limited/blocked by Dhan. "
+                f"Cooling down for {WS_BLOCKED_RETRY_SECONDS} seconds. Error: {error_text}",
+                flush=True,
+            )
+            return
+        print(f"Dhan WebSocket error: {error}", flush=True)
 
     def _on_close(self, ws, code, reason):
         mark_connected(False)
-        print(f"Dhan WebSocket closed: {code} {reason}")
+        print(f"Dhan WebSocket closed: {code} {reason}", flush=True)
+
+    def _is_rate_limit_error(self, error_text):
+        text = error_text.lower()
+        return "429" in text or "too many requests" in text or "client id is blocked" in text
 
     def _parse_packet(self, data):
         if len(data) < 8:
