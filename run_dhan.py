@@ -1,4 +1,5 @@
 import os
+import atexit
 import threading
 import time
 from datetime import datetime, timedelta
@@ -24,8 +25,10 @@ dhan = DhanLikeClient()
 
 scanner_thread = None
 flow_engine = None
+scanner_stop_event = threading.Event()
 scanner_lock = threading.Lock()
 background_started = False
+shutdown_stop_alert_sent = False
 
 
 def credentials_present():
@@ -68,15 +71,56 @@ def validate_and_start_scanner(source):
             dhan.profile()
             print(f"[{source}] Dhan credentials validated. Starting engine...")
 
+            scanner_stop_event.clear()
             flow_engine = FlowEngine(dhan)
             flow_engine.start()
 
-            scanner_thread = threading.Thread(target=run_scanner, args=(dhan,), daemon=True)
+            scanner_thread = threading.Thread(target=run_scanner, args=(dhan, scanner_stop_event), daemon=True)
             scanner_thread.start()
             return True
         except Exception as e:
             print(f"[{source}] Dhan validation failed: {e}")
             return False
+
+
+def stop_scanner(source):
+    global flow_engine
+    with scanner_lock:
+        thread = scanner_thread
+        if not thread or not thread.is_alive():
+            print(f"[{source}] Dhan scanner already stopped.")
+            return False
+
+        print(f"[{source}] Stopping Dhan scanner...")
+        scanner_stop_event.set()
+        engine = flow_engine
+
+    if engine:
+        try:
+            engine.stop()
+        except Exception as e:
+            print(f"[{source}] Dhan WebSocket stop error: {e}")
+
+    thread.join(timeout=10)
+    return True
+
+
+def _send_shutdown_stop_alert():
+    global shutdown_stop_alert_sent
+    if shutdown_stop_alert_sent:
+        return
+    thread = scanner_thread
+    if not thread or not thread.is_alive():
+        return
+    shutdown_stop_alert_sent = True
+    send_telegram_message(
+        "Dhan scanner stopped.\n"
+        "Source: Railway/process shutdown\n"
+        f"Time: {datetime.now(IST).strftime('%Y-%m-%d %H:%M:%S')} IST"
+    )
+
+
+atexit.register(_send_shutdown_stop_alert)
 
 
 def update_instruments(source="Manual", notify=False):
@@ -209,6 +253,12 @@ def start():
     ensure_background_services_started("HTTP /start")
     ok = validate_and_start_scanner("Manual Start")
     return "<h1>Dhan Scanner Started</h1>" if ok else "<h1>Dhan Scanner Start Failed</h1>"
+
+
+@app.route("/stop")
+def stop():
+    ok = stop_scanner("Manual Stop")
+    return "<h1>Dhan Scanner Stopped</h1>" if ok else "<h1>Dhan Scanner Already Stopped</h1>"
 
 
 @app.route("/refresh-instruments")

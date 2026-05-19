@@ -34,12 +34,13 @@ Routes:
 
 - `/` scanner status
 - `/start` manually start scanner
+- `/stop` manually stop scanner
 - `/refresh-instruments` refresh Dhan security master
 - `/login` setup note; Dhan uses environment token login
 
 The scanner downloads `security_id_list.csv` from Dhan automatically if it is missing.
 
-During scanner operation, futures/options burst alerts and a scanner-start message are sent to Telegram. Gap, pivot, reversal, weekly breakout, stop, and scanner error Telegram messages are disabled in the Dhan scanner.
+During scanner operation, futures/options burst alerts plus scanner-start and scanner-stop messages are sent to Telegram. Gap, pivot, reversal, weekly breakout, and scanner error Telegram messages are disabled in the Dhan scanner.
 
 Crude oil burst alerts are additionally checked after 15:30 IST on weekdays, using the same 15-second OI burst watch logic with crude-specific strength levels:
 
