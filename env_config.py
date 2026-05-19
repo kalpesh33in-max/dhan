@@ -1,0 +1,18 @@
+import os
+
+# DhanHQ credentials
+# Generate these in Dhan Web/App -> My Profile -> Access DhanHQ APIs.
+DHAN_CLIENT_ID = os.getenv("DHAN_CLIENT_ID", "YOUR_DHAN_CLIENT_ID")
+DHAN_ACCESS_TOKEN = os.getenv("DHAN_ACCESS_TOKEN", "YOUR_DHAN_ACCESS_TOKEN")
+
+# Telegram Credentials
+TELE_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
+TELE_TOKEN_BN = os.getenv("TELE_TOKEN_BN", TELE_TOKEN)
+TELE_TOKEN_STOCKS = os.getenv("TELE_TOKEN_STOCKS", TELE_TOKEN)
+TELE_TOKEN_VELOCITY = os.getenv("TELE_TOKEN_VELOCITY", TELE_TOKEN)
+
+TELE_CHAT_ID = os.getenv("CHAT_ID", "YOUR_CHAT_ID")
+TELE_CHAT_ID_BN = os.getenv("CHAT_ID_BN", TELE_CHAT_ID)
+TELE_CHAT_ID_STOCKS = os.getenv("CHAT_ID_STOCKS", TELE_CHAT_ID)
+TELE_CHAT_ID_VELOCITY = os.getenv("CHAT_ID_VELOCITY", TELE_CHAT_ID)
+
