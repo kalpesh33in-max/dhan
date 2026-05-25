@@ -1,7 +1,0 @@
-dhanhq
-pandas
-flask
-websocket-client
-requests
-gunicorn
-
